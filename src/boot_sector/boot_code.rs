@@ -25,18 +25,6 @@ pub struct BootCode(
     u16,
 );
 
-impl From<[u8; 390]> for BootCode {
-    fn from(value: [u8; 390]) -> Self {
-        Self(value, 0xAA55)
-    }
-}
-
-impl From<&[u8]> for BootCode {
-    fn from(value: &[u8]) -> Self {
-        BootCode::new(value)
-    }
-}
-
 impl BootCode {
     pub fn new(boot_code: &[u8]) -> Self {
         // check length is not longer than 390

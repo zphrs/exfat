@@ -3,7 +3,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Expr, Meta, Type};
+use syn::{parse_macro_input, Data, DeriveInput};
 
 #[proc_macro_derive(DiskLayout, attributes(min, max, size))]
 pub fn derive_disk_layout(input: TokenStream) -> TokenStream {

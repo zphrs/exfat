@@ -1,8 +1,12 @@
 pub mod boot_code;
+pub mod extended_boot_code;
+mod extended_boot_sector;
 mod must_be_zero;
 mod volume_flags;
 
-use std::cmp::min;
+use std::{cmp::min, ops::Deref};
+
+use crate::shift::{BytesPerSector, SectorsPerCluster, ShiftedBytes, ShiftedSectors};
 
 use self::{boot_code::BootCode, must_be_zero::MustBeZero, volume_flags::VolumeFlags};
 use macros::DiskLayout;
@@ -175,7 +179,7 @@ pub struct BootSector {
     ///   of CPUs common in personal computers
     #[min(9)]
     #[max(12)]
-    bytes_per_sector_shift: u8,
+    bytes_per_sector_shift: ShiftedBytes,
     /// The SectorsPerClusterShift field shall describe the sectors per cluster
     /// expressed as log2(N), where N is number of sectors per cluster. For
     /// example, for 8 sectors per cluster, the value of this field is 3.
@@ -187,7 +191,7 @@ pub struct BootSector {
     ///   32MB
     #[min(0)]
     #[max(25 - self.bytes_per_sector_shift)]
-    sectors_per_cluster_shift: u8,
+    sectors_per_cluster_shift: ShiftedSectors,
     /// The NumberOfFats field shall describe the number of FATs and Allocation
     /// Bitmaps the volume contains.
     ///
@@ -254,24 +258,26 @@ impl BootSector {
 
         out.boot_code = boot_code;
 
-        out.bytes_per_sector_shift = bytes_per_sector_shift;
-        out.sectors_per_cluster_shift = sectors_per_cluster_shift;
+        out.bytes_per_sector_shift = (bytes_per_sector_shift).into();
+        out.sectors_per_cluster_shift = sectors_per_cluster_shift.into();
         out.cluster_heap_offset = cluster_heap_offset;
 
         out.volume_length = out.cluster_heap_offset as u64
-            + (2u64.pow(32u32) - 11) * 2u64.pow(out.sectors_per_cluster_shift as u32);
+            + (2u64.pow(32u32) - 11) * (*out.sectors_per_cluster_shift.unshift() as u64);
         out.fat_offset = 24;
         out.cluster_count = min(
             out.volume_length as i64
-                - out.cluster_heap_offset as i64 / 2i64.pow(out.sectors_per_cluster_shift as u32),
+                - out.cluster_heap_offset as i64
+                    / (*out.sectors_per_cluster_shift.unshift() as i64),
             (u32::MAX - 11) as i64,
         )
         .try_into()
         .unwrap();
+
         out.fat_length = ((out.cluster_count as u64 + 2) * 4
-            / 2u64.pow(out.bytes_per_sector_shift as u32))
-        .try_into()
-        .unwrap();
+            / (*out.bytes_per_sector_shift.unshift() as u64))
+            .try_into()
+            .unwrap();
         out.first_cluster_of_root_directory = 2;
         out.volume_serial_number = OsRng.gen(); // HACK should instead use current date and time.
         out.file_system_revision = [0, 1];
@@ -281,10 +287,17 @@ impl BootSector {
         // out.boot_code = BootCode::default();
         out
     }
+
+    pub fn bytes_per_sector(&self) -> BytesPerSector {
+        self.bytes_per_sector_shift.unshift()
+    }
+    pub fn sectors_per_cluster(&self) -> SectorsPerCluster {
+        self.sectors_per_cluster_shift.unshift()
+    }
     pub(crate) fn set_boot_code(&mut self, boot_code: BootCode) {
         self.boot_code = boot_code;
     }
-
+    // FIXME should be a checksum over the whole main boot region
     pub fn checksum(&self) -> u32 {
         let serialized = bincode::serialize(self).unwrap();
         let mut checksum = 0u32;
@@ -316,6 +329,6 @@ mod tests {
             .with_fixint_encoding()
             .with_little_endian();
         let serialized = my_options.serialize(&bs).unwrap();
-        println!("{serialized:?}")
+        println!("{serialized:?}");
     }
 }
