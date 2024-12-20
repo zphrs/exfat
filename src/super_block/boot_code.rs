@@ -2,7 +2,7 @@ use macros::DiskLayout;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
-#[derive(DiskLayout, Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct BootCode(
     /// ## Description
     /// The BootCode field shall contain boot-strapping instructions.

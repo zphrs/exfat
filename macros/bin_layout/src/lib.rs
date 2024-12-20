@@ -1,6 +1,7 @@
 mod fields;
 extern crate proc_macro;
 
+use fields::get_bounding_code;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DeriveInput};
@@ -12,19 +13,18 @@ pub fn derive_disk_layout(input: TokenStream) -> TokenStream {
 }
 
 fn impl_derive_disk_layout(ast: &syn::DeriveInput) -> TokenStream {
-    let DeriveInput {
-        data, ident, attrs, ..
-    } = ast;
+    let DeriveInput { data, ident, .. } = ast;
     let Data::Struct(s) = data.clone() else {
         panic!("expected struct")
     };
+    let bounding_code = get_bounding_code(s.fields);
     let q = quote! {
         impl #ident {
-            pub fn parse() {
-                for
+            pub fn verify_bounds(&self) -> Result<(), BoundError> {
+                #bounding_code
+                Ok(())
             }
         }
     };
-    // println!("{attrs:?}");
-    TokenStream::new()
+    q.into()
 }

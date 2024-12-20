@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Deref};
+use core::{fmt::Display, ops::Deref};
 
 pub struct Index(u8);
 
@@ -8,7 +8,7 @@ pub enum Error {
 }
 
 impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Error::TooBig(i) => {
                 write!(
