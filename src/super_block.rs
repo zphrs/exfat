@@ -363,28 +363,28 @@ impl SuperBlock {
     /// of two based on where the
     /// hardware prefers divisions.
     pub fn new(
-        bytes_per_sector_shift: u8,
-        sectors_per_cluster_shift: u8,
+        bytes_per_sector: BytesPerSector,
+        sectors_per_cluster: SectorsPerCluster,
         boot_code: BootCode,
         volume_length: u64,
     ) -> Self {
         let mut out = Self::default();
         out.jump_boot = [0xEB, 0x76, 0x90];
         out.file_system_name = *b"EXFAT   ";
-        if bytes_per_sector_shift + sectors_per_cluster_shift > 25 {
+        let bytes_shifted = bytes_per_sector.shift();
+        let sectors_shifted = sectors_per_cluster.shift();
+        if bytes_shifted.inner() + sectors_shifted.inner() > 25 {
             panic!("A cluster cannot be bigger than 32mb");
         }
 
         out.boot_code = boot_code;
 
-        out.bytes_per_sector_shift = bytes_per_sector_shift.into();
-        out.sectors_per_cluster_shift = sectors_per_cluster_shift.into();
+        out.bytes_per_sector_shift = bytes_per_sector.shift();
+        out.sectors_per_cluster_shift = sectors_per_cluster.shift();
         out.fat_offset = 24;
         out.number_of_fats = 2;
 
-        let cluster_size: u64 = 2u64.pow(
-            bytes_per_sector_shift as u32 + sectors_per_cluster_shift as u32,
-        );
+        let cluster_size: u64 = (*bytes_per_sector * *sectors_per_cluster) as u64;
 
         let clusters_max = volume_length / cluster_size;
         let fat_sector_count = (clusters_max * size_of::<FatEntry>() as u64)
@@ -400,8 +400,6 @@ impl SuperBlock {
             (cluster_size * 2 / *out.bytes_per_sector() as u64) as u32;
         out.cluster_count = (out.volume_length as u32 - out.cluster_heap_offset) / 
         *out.sectors_per_cluster() as u32;
-
-        out.first_cluster_of_root_directory = 2;
 
         out.first_cluster_of_root_directory = 2;
         out.volume_serial_number = OsRng.gen(); // HACK should instead use
@@ -427,35 +425,19 @@ impl SuperBlock {
     pub(crate) fn set_boot_code(&mut self, boot_code: BootCode) {
         self.boot_code = boot_code;
     }
-    // FIXME should be a checksum over the whole
-    // main boot region
-    pub fn checksum(&self) -> u32 {
-        let serialized = bincode::serialize(self).unwrap();
-        let mut checksum = 0u32;
-        for (i, byte) in serialized.iter().enumerate() {
-            if [
-                106, 107, // volumeFlags
-                112, // percentInUse
-            ]
-            .contains(&i)
-            {
-                continue;
-            }
-            checksum = checksum.rotate_right(1) + (*byte as u32);
-        }
-        checksum
-    }
 }
 #[cfg(test)]
 mod tests {
     use bincode::Options;
+
+    use crate::shift::{ShiftedBytes, ShiftedSectors};
 
     use super::{boot_code::BootCode, SuperBlock};
 
     #[test]
     pub fn serialize() {
         const V_SIZE: u64 = 2u64.pow(35);
-        let bs = SuperBlock::new(12, 8, BootCode::default(), V_SIZE);
+        let bs = SuperBlock::new(ShiftedBytes::new(12).into(), ShiftedSectors::from(8).into(), BootCode::default(), V_SIZE);
         let my_options = bincode::DefaultOptions::new()
             .allow_trailing_bytes()
             .with_fixint_encoding()

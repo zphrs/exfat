@@ -72,10 +72,7 @@ mod tests {
         bincode_options.serialize_into(&mut cursor, &ebs).unwrap();
         cursor.set_position(0);
         let deserialized = bincode_options
-            .deserialize_from_seed(
-                BytesPerSectorSeed::from(BYTES_PER_SECTOR),
-                cursor,
-            )
+            .deserialize_from_seed(BytesPerSectorSeed(BYTES_PER_SECTOR), cursor)
             .unwrap();
 
         assert!(deserialized == ebs);
